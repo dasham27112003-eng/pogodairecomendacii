@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a" id="metaThemeColor">
+<title>Панель безопасности — Погодный мониторинг</title>
+<style>
+  :root{
+    --text:#e2e8f0; --muted:#94a3b8;
+    --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+    --accent:#38bdf8; --border:#334155;
+    --panel-2:#273449;
+    --panel-bg:rgba(20,28,45,0.72);
+    --panel-border:rgba(255,255,255,0.12);
+    --panel-shadow:rgba(0,0,0,0.25);
+    --metric-bg:#273449;
+    --forecast-bg:#273449;
+    --forecast-danger-bg:#3f1d1d;
+    --forecast-warn-bg:#3d2f12;
+    --chart-empty:#334155;
+    --tab-bg:#273449;
+    --btn-hover:#334155;
+  }
+
+  /* Светлая тема */
+  html.light{
+    --text:#0f172a;
+    --muted:#475569;
+    --border:#cbd5e1;
+    --panel-2:#e2e8f0;
+    --panel-bg:rgba(255,255,255,0.78);
+    --panel-border:rgba(0,0,0,0.08);
+    --panel-shadow:rgba(0,0,0,0.10);
+    --metric-bg:#f1f5f9;
+    --forecast-bg:#f1f5f9;
+    --forecast-danger-bg:#fee2e2;
+    --forecast-warn-bg:#fef3c7;
+    --chart-empty:#cbd5e1;
+    --tab-bg:#e2e8f0;
+    --btn-hover:#cbd5e1;
+    --ok:#16a34a;
+    --warn:#d97706;
+    --danger:#dc2626;
+    --accent:#0284c7;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  html{background:#0a0e1a}
+  html, body{
+    min-height:100vh; min-height:100dvh;
+    max-width:100%;
+    overflow-x:hidden;   /* страховка: ничего не выйдет за край */
+  }
+  img, svg, canvas, video{max-width:100%}
+
+   body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--text);
+    padding:24px;
+    padding-left:  max(24px, env(safe-area-inset-left));
+    padding-right: max(24px, env(safe-area-inset-right));
+    padding-bottom:max(24px, env(safe-area-inset-bottom));
+    position:relative;
+    transition:color .3s;
+  }
+
+  header{max-width:1100px;margin:0 auto 24px}
+  h1{font-size:1.6rem;font-weight:600;margin-bottom:4px}
+  .subtitle{color:var(--muted);font-size:.9rem}
+
+  main{max-width:1100px;margin:0 auto;display:grid;gap:20px}
+
+  .controls{
+    display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+    background:var(--panel-bg);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    padding:16px;border-radius:12px;
+    border:1px solid var(--panel-border);
+    box-shadow:0 8px 32px var(--panel-shadow);
+    transition:background .3s, border-color .3s, box-shadow .3s;
+  }
+  select,button{
+    background:var(--panel-2);color:var(--text);
+    border:1px solid var(--border);border-radius:8px;
+    padding:10px 14px;font-size:.95rem;cursor:pointer;
+    transition:border-color .15s, background .15s, color .15s;
+  }
+  select:focus,button:focus{outline:none;border-color:var(--accent)}
+  button:hover{background:var(--btn-hover)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .status{margin-left:auto;color:var(--muted);font-size:.85rem}
+
+  .grid{display:grid;gap:20px;grid-template-columns:1fr 1fr}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--panel-bg);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--panel-border);
+    border-radius:12px;padding:20px;
+    box-shadow:0 8px 32px var(--panel-shadow);
+    transition:background .3s, border-color .3s, box-shadow .3s;
+  }
+  .card h2{
+    font-size:1rem;font-weight:600;margin-bottom:14px;
+    color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
+  }
+
+  /* Текущая погода */
+  .current-temp{font-size:3.4rem;font-weight:700;line-height:1}
+  .current-symbol{font-size:2rem;margin-bottom:8px}
+  .current-desc{color:var(--muted);margin-bottom:10px}
+  .info-row{
+    display:flex;flex-wrap:wrap;gap:8px;
+    margin-bottom:16px;font-size:.82rem;color:var(--muted);
+  }
+  .info-row .info-item{
+    background:var(--metric-bg);
+    padding:4px 10px;border-radius:6px;
+    font-variant-numeric:tabular-nums;
+    transition:background .3s;
+  }
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .metric{background:var(--metric-bg);padding:12px;border-radius:8px;transition:background .3s}
+  .metric-label{font-size:.75rem;color:var(--muted);text-transform:uppercase}
+  .metric-value{font-size:1.1rem;font-weight:600;margin-top:4px}
+
+  /* Оповещения */
+  .alert{
+    display:flex;gap:12px;align-items:flex-start;
+    padding:12px;border-radius:8px;margin-bottom:10px;
+    background:var(--metric-bg);border-left:4px solid var(--ok);
+    transition:background .3s;
+  }
+  .alert.warn{border-left-color:var(--warn)}
+  .alert.danger{border-left-color:var(--danger)}
+  .alert-icon{font-size:1.2rem;line-height:1.2}
+  .alert-title{font-weight:600;font-size:.95rem}
+  .alert-text{color:var(--muted);font-size:.85rem;margin-top:2px}
+  .alert.ok .alert-title{color:var(--ok)}
+  .alert.warn .alert-title{color:var(--warn)}
+  .alert.danger .alert-title{color:var(--danger)}
+  /* Советы по погоде */
+  .tips-list{
+    margin-top:14px;padding-top:14px;
+    border-top:1px dashed var(--border);
+    display:flex;flex-direction:column;gap:8px;
+    transition:border-color .3s;
+  }
+  .tip{
+    display:flex;gap:10px;align-items:center;
+    padding:8px 12px;background:var(--metric-bg);
+    border-radius:6px;font-size:.85rem;
+    transition:background .3s;
+  }
+  .tip-icon{font-size:1.1rem;line-height:1}
+  .tip-text{color:var(--text)}
+  /* Прогноз */
+  .forecast{grid-column:1/-1}
+  .forecast-list{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}
+  .forecast-item{
+    min-width:78px;text-align:center;background:var(--forecast-bg);
+    border-radius:8px;padding:10px 6px;flex-shrink:0;
+    transition:background .3s, border-color .3s;
+  }
+  .forecast-time{font-size:.75rem;color:var(--muted)}
+  .forecast-icon{font-size:1.4rem;margin:6px 0}
+  .forecast-temp{font-weight:600}
+  .forecast-precip{font-size:.7rem;color:var(--accent);margin-top:2px}
+  .forecast-item.danger{background:var(--forecast-danger-bg);border:1px solid var(--danger)}
+  .forecast-item.warn{background:var(--forecast-warn-bg);border:1px solid var(--warn)}
+
+  /* Табы графиков */
+  .chart-tabs{display:flex;gap:6px;margin-top:16px;flex-wrap:wrap}
+  .chart-tab{
+    padding:6px 12px;font-size:.8rem;
+    background:var(--tab-bg);color:var(--muted);
+    border:1px solid var(--border);border-radius:6px;cursor:pointer;
+    transition:all .15s;
+  }
+  .chart-tab:hover{color:var(--text)}
+  .chart-tab.active{
+    background:rgba(56,189,248,0.15);
+    color:var(--accent);
+    border-color:var(--accent);
+  }
+  html.light .chart-tab.active{
+    background:rgba(2,132,199,0.12);
+  }
+
+  /* Диаграмма */
+  .chart{display:flex;align-items:flex-end;gap:4px;height:120px;margin-top:12px}
+  .bar{
+    flex:1;border-radius:3px 3px 0 0;min-height:4px;position:relative;
+    transition:background .3s;
+  }
+  .bar:hover::after{
+    content:attr(data-tip);
+    position:absolute;bottom:100%;left:50%;
+    transform:translateX(-50%);
+    background:#000;color:#fff;padding:3px 8px;border-radius:4px;
+    font-size:.7rem;white-space:nowrap;pointer-events:none;
+    z-index:5;
+  }
+
+  footer{max-width:1100px;margin:24px auto 0;color:var(--muted);
+         font-size:.8rem;line-height:1.6}
+  footer a{color:var(--accent);text-decoration:none}
+  .loader{color:var(--muted);font-style:italic}
+  .error{color:var(--danger);background:var(--forecast-danger-bg);padding:12px;
+         border-radius:8px;border-left:4px solid var(--danger);transition:background .3s}
+
+  /* === Динамический фон === */
+  .sky-bg{
+    position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;
+  }
+  .sky-base,.sky-weather,.sky-stars,.sky-sun{
+    position:absolute;inset:0;
+    transition:background 2s ease, background-color 2s ease,
+               opacity 2s ease, filter 2s ease;
+  }
+  .sky-weather{opacity:0}
+
+  .sky-stars{
+    opacity:0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 8% 15%, #fff, transparent),
+      radial-gradient(1px 1px at 22% 8%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 35% 22%, #fff, transparent),
+      radial-gradient(1px 1px at 48% 12%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 62% 28%, #fff, transparent),
+      radial-gradient(1px 1px at 75% 6%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 88% 18%, #fff, transparent),
+      radial-gradient(1px 1px at 14% 42%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 28% 55%, #fff, transparent),
+      radial-gradient(1px 1px at 42% 48%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 58% 62%, #fff, transparent),
+      radial-gradient(1px 1px at 72% 45%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 86% 58%, #fff, transparent),
+      radial-gradient(1px 1px at 6% 68%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 20% 82%, #fff, transparent),
+      radial-gradient(1px 1px at 38% 75%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 55% 88%, #fff, transparent),
+      radial-gradient(1px 1px at 70% 78%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 92% 85%, #fff, transparent),
+      radial-gradient(1px 1px at 45% 35%, #fff, transparent);
+    animation:twinkle 5s ease-in-out infinite;
+  }
+  @keyframes twinkle{
+    0%,100%{filter:brightness(1)}
+    50%{filter:brightness(0.65)}
+  }
+
+  .sky-sun{
+    opacity:0;
+    background:radial-gradient(circle at var(--sun-x,50%) var(--sun-y,20%),
+      rgba(255,245,210,0.95) 0%,
+      rgba(255,215,140,0.55) 6%,
+      rgba(255,190,100,0.18) 18%,
+      transparent 42%);
+  }
+  /* Молния в светлой теме — мягкая тень, а не вспышка */
+  html.light .lightning{
+    background:#64748b;
+    mix-blend-mode:multiply;
+  }
+  /* Канвас для осадков */
+  .fx-canvas{
+    position:absolute;inset:0;width:100%;height:100%;
+    pointer-events:none;
+  }
+
+  /* Вспышка молнии */
+  .lightning{
+    position:absolute;inset:0;background:#fff;opacity:0;
+    pointer-events:none;
+  }
+  .lightning.flash{animation:lightningFlash .8s ease-out}
+  @keyframes lightningFlash{
+    0%{opacity:0}
+    6%{opacity:.75}
+    18%{opacity:.05}
+    30%{opacity:.65}
+    55%{opacity:.05}
+    75%{opacity:.4}
+    100%{opacity:0}
+  }
+
+  /* Тост */
+  .toast{
+    position:fixed;bottom:24px;left:50%;
+    transform:translateX(-50%) translateY(10px);
+    background:var(--panel-bg);color:var(--text);
+    padding:10px 18px;border-radius:10px;
+    border:1px solid var(--panel-border);
+    box-shadow:0 8px 32px var(--panel-shadow);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    font-size:.9rem;
+    opacity:0;pointer-events:none;
+    transition:opacity .3s, transform .3s;
+    z-index:100;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============================================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ — компактный режим «всё на одном экране»
+   ============================================================ */
+@media (max-width: 640px){
+  body{
+    padding:8px;
+    padding-left:  max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-bottom:max(8px, env(safe-area-inset-bottom));
+  }
+
+  /* Шапка — минимальная, подзаголовок скрыт */
+  header{margin:0 auto 8px; padding:0 4px}
+  h1{font-size:1rem;line-height:1.2;font-weight:600}
+  .subtitle{display:none}
+
+  main{gap:8px; min-width:0}
+  .grid{gap:8px; min-width:0}
+
+  /* Все сеточные и флекс-контейнеры получают возможность сжиматься */
+  main, .grid, .card,
+  #currentContent, #forecastContent, #alertsContent,
+  #currentContent > *, .forecast-list,
+  .forecast-list > *, .metrics, .metrics > *,
+  .info-row, .info-row > *, .controls, .controls > *{
+    min-width:0;
+  }
+
+  /* Панель управления — grid, select сжимается до доступного места */
+  .controls{
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) auto auto auto;
+    gap:6px;
+    align-items:center;
+    padding:6px 8px;
+    border-radius:10px;
+    width:100%;
+    box-sizing:border-box;
+  }
+  .controls > label{display:none}
+  .controls select{
+    min-width:0;
+    width:100%;
+    min-height:36px;
+    padding:6px 8px;
+    font-size:.82rem;
+    border-radius:7px;
+    box-sizing:border-box;
+  }
+  .controls button{
+    min-height:36px;
+    padding:6px 9px;
+    font-size:.85rem;
+    border-radius:7px;
+    box-sizing:border-box;
+  }
+  /* Статус на мобильном не нужен — он есть в тосте при копировании */
+  .controls .status{display:none}
+
+  /* Карточки — минимальные padding'и */
+  .card{padding:10px;border-radius:10px}
+  .card h2{font-size:.7rem;margin-bottom:8px;letter-spacing:.03em}
+
+  /* ===== ТЕКУЩИЕ УСЛОВИЯ — горизонтальная компоновка ===== */
+  #currentContent{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    column-gap:10px;
+    row-gap:6px;
+    align-items:center;
+  }
+  .current-symbol{
+    grid-row:1 / span 2;
+    grid-column:1;
+    font-size:2.2rem;
+    margin:0;
+    line-height:1;
+    text-align:center;
+    align-self:center;
+  }
+  .current-temp{
+    grid-column:2;
+    font-size:2rem;
+    line-height:1;
+    align-self:end;
+  }
+  .current-desc{
+    grid-column:2;
+    font-size:.72rem;
+    margin:0;
+    align-self:start;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .info-row{
+    grid-column:1 / -1;
+    gap:4px;
+    font-size:.66rem;
+    margin-bottom:0;
+    margin-top:2px;
+  }
+  .info-row .info-item{
+    padding:2px 6px;
+    border-radius:4px;
+    line-height:1.4;
+  }
+  .metrics{
+    grid-column:1 / -1;
+    gap:4px;
+    margin-top:2px;
+  }
+  .metric{padding:6px 5px;border-radius:5px}
+  .metric-label{font-size:.55rem;letter-spacing:.02em}
+  .metric-value{font-size:.78rem;margin-top:2px}
+
+  /* ===== ОПОВЕЩЕНИЯ И СОВЕТЫ ===== */
+  .alert{padding:7px 8px;gap:7px;margin-bottom:5px;border-radius:6px}
+  .alert-icon{font-size:.95rem}
+  .alert-title{font-size:.76rem}
+  .alert-text{font-size:.68rem;margin-top:1px}
+
+  .tips-list{
+    margin-top:8px;padding-top:8px;gap:4px;
+  }
+  .tip{padding:5px 8px;font-size:.72rem;gap:6px;border-radius:5px}
+  .tip-icon{font-size:.9rem}
+
+  /* ===== ПРОГНОЗ — компактные карточки ===== */
+  .forecast-list{
+    gap:5px;
+    padding-bottom:4px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    max-width:100%;
+    width:100%;
+  }
+  .forecast-list > *{flex-shrink:0}
+  .forecast-item{
+    min-width:50px;padding:5px 3px;border-radius:5px;
+  }
+  .forecast-time{font-size:.6rem}
+  .forecast-icon{font-size:1rem;margin:2px 0}
+  .forecast-temp{font-size:.78rem}
+  .forecast-precip{font-size:.58rem;margin-top:1px}
+
+  /* ===== ДИАГРАММА — низкая, чтобы не забирать вертикаль ===== */
+  .chart-tabs{margin-top:8px;gap:3px}
+  .chart-tab{
+    padding:4px 9px;font-size:.68rem;min-height:28px;
+    border-radius:5px;border-width:1px;
+  }
+  .chart{height:56px;gap:2px;margin-top:6px}
+  .bar:hover::after{display:none} /* тултип на тач не нужен */
+
+  /* ===== ФУТЕР — минимальный ===== */
+  footer{
+    margin-top:8px;
+    font-size:.62rem;
+    line-height:1.45;
+    padding:0 4px;
+  }
+  footer p{margin:0 0 2px}
+  footer p + p{margin-top:2px}
+
+  /* ===== ТОСТ ===== */
+  .toast{
+    left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));
+    transform:translateY(10px);
+    text-align:center;
+    font-size:.8rem;
+    padding:8px 12px;
+  }
+  .toast.show{transform:translateY(0)}
+}
+
+/* ============================================================
+   ОЧЕНЬ УЗКИЕ ЭКРАНЫ (iPhone SE, Galaxy A-серия)
+   ============================================================ */
+@media (max-width: 380px){
+  .metrics{grid-template-columns:1fr 1fr}
+  .metric:nth-child(3){grid-column:1 / -1}
+  .current-temp{font-size:1.7rem}
+  .current-symbol{font-size:1.9rem}
+  .chart{height:50px}
+  .forecast-item{min-width:46px}
+}
+
+/* ============================================================
+   ОЧЕНЬ НИЗКИЕ ЭКРАНЫ — ужимаем дополнительно
+   (старые телефоны 16:9 в landscape, iPhone SE вертикально)
+   ============================================================ */
+@media (max-height: 700px) and (max-width: 640px){
+  header{margin-bottom:6px}
+  h1{font-size:.9rem}
+
+  .controls{padding:5px 8px}
+  .controls select{min-height:32px;font-size:.78rem}
+  .controls button{min-height:32px;padding:4px 8px;font-size:.8rem}
+
+  .card{padding:8px;border-radius:8px}
+  .card h2{font-size:.66rem;margin-bottom:6px}
+
+  .current-symbol{font-size:1.8rem}
+  .current-temp{font-size:1.6rem}
+  .current-desc{font-size:.66rem}
+  .info-row{font-size:.6rem;gap:3px}
+  .info-row .info-item{padding:2px 5px}
+  .metric{padding:4px 3px}
+  .metric-label{font-size:.5rem}
+  .metric-value{font-size:.7rem}
+
+  .alert{padding:5px 7px;gap:6px;margin-bottom:4px}
+  .alert-icon{font-size:.85rem}
+  .alert-title{font-size:.7rem}
+  .alert-text{font-size:.63rem}
+  .tip{padding:4px 6px;font-size:.66rem}
+
+  .forecast-item{min-width:46px;padding:4px 2px}
+  .forecast-time{font-size:.55rem}
+  .forecast-icon{font-size:.9rem;margin:1px 0}
+  .forecast-temp{font-size:.7rem}
+  .forecast-precip{font-size:.52rem}
+
+  .chart{height:44px;margin-top:4px}
+  .chart-tabs{margin-top:6px}
+  .chart-tab{padding:3px 7px;font-size:.62rem;min-height:26px}
+
+  footer{font-size:.56rem;margin-top:6px}
+}
+  /* ============================================================
+   ТАЧ-УСТРОЙСТВА — убираем тяжёлый blur
+   ============================================================ */
+@media (hover: none) and (pointer: coarse){
+  .card, .controls, .toast{
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    background:rgba(20,28,45,0.88);
+  }
+  html.light .card,
+  html.light .controls,
+  html.light .toast{
+    background:rgba(255,255,255,0.92);
+  }
+}</style>
+
+<!-- Применяем тему до отрисовки, чтобы не было «мигания» -->
+<script>
+  try{
+    if (localStorage.getItem('weather-theme') === 'light'){
+      document.documentElement.classList.add('light');
+    }
+  }catch(e){}
+</script>
+</head>
+<body>
+
+<!-- Слои динамического фона -->
+<div class="sky-bg" aria-hidden="true">
+  <div class="sky-base" id="skyBase"></div>
+  <div class="sky-weather" id="skyWeather"></div>
+  <div class="sky-stars" id="skyStars"></div>
+  <div class="sky-sun" id="skySun"></div>
+  <canvas class="fx-canvas" id="fxCanvas"></canvas>
+  <div class="lightning" id="lightning"></div>
+</div>
+
+<header>
+  <h1>🛡️ Панель безопасности — Погодный мониторинг</h1>
+  <p class="subtitle">Источник данных: MET Norway (api.met.no). Открытый API, без ключа.</p>
+</header>
+
+<main>
+  <div class="controls">
+    <label for="citySelect">Город:</label>
+    <select id="citySelect">
+      <optgroup label="Европейская часть">
+        <option value="55.7558,37.6173" data-tz="Europe/Moscow"       data-slug="moscow">Москва</option>
+        <option value="59.9343,30.3351" data-tz="Europe/Moscow"       data-slug="spb">Санкт-Петербург</option>
+        <option value="54.7104,20.4522" data-tz="Europe/Kaliningrad"  data-slug="kaliningrad">Калининград</option>
+        <option value="68.9585,33.0827" data-tz="Europe/Moscow"       data-slug="murmansk">Мурманск</option>
+        <option value="56.3269,44.0059" data-tz="Europe/Moscow"       data-slug="nnovgorod">Нижний Новгород</option>
+        <option value="55.8304,49.0661" data-tz="Europe/Moscow"       data-slug="kazan">Казань</option>
+        <option value="53.1959,50.1002" data-tz="Europe/Samara"       data-slug="samara">Самара</option>
+        <option value="51.6720,39.1843" data-tz="Europe/Moscow"       data-slug="voronezh">Воронеж</option>
+        <option value="48.7080,44.5133" data-tz="Europe/Volgograd"    data-slug="volgograd">Волгоград</option>
+        <option value="47.2225,39.7188" data-tz="Europe/Moscow"       data-slug="rostov">Ростов-на-Дону</option>
+        <option value="45.0355,38.9753" data-tz="Europe/Moscow"       data-slug="krasnodar">Краснодар</option>
+        <option value="43.6028,39.7342" data-tz="Europe/Moscow"       data-slug="sochi">Сочи</option>
+      </optgroup>
+      <optgroup label="Урал и Сибирь">
+        <option value="56.8389,60.6057" data-tz="Asia/Yekaterinburg"  data-slug="ekaterinburg">Екатеринбург</option>
+        <option value="55.1644,61.4368" data-tz="Asia/Yekaterinburg"  data-slug="chelyabinsk">Челябинск</option>
+        <option value="54.7388,55.9721" data-tz="Asia/Yekaterinburg"  data-slug="ufa">Уфа</option>
+        <option value="58.0105,56.2502" data-tz="Asia/Yekaterinburg"  data-slug="perm">Пермь</option>
+        <option value="54.9885,73.3242" data-tz="Asia/Omsk"           data-slug="omsk">Омск</option>
+        <option value="55.0084,82.9357" data-tz="Asia/Novosibirsk"    data-slug="novosibirsk">Новосибирск</option>
+        <option value="56.0153,92.8932" data-tz="Asia/Krasnoyarsk"    data-slug="krasnoyarsk">Красноярск</option>
+        <option value="52.2870,104.3050" data-tz="Asia/Irkutsk"       data-slug="irkutsk">Иркутск</option>
+      </optgroup>
+      <optgroup label="Дальний Восток">
+        <option value="62.0281,129.7324" data-tz="Asia/Yakutsk"       data-slug="yakutsk">Якутск</option>
+        <option value="48.4827,135.0838" data-tz="Asia/Vladivostok"   data-slug="khabarovsk">Хабаровск</option>
+        <option value="43.1332,131.9113" data-tz="Asia/Vladivostok"   data-slug="vladivostok">Владивосток</option>
+      </optgroup>
+    </select>
+    <button id="refreshBtn">Обновить</button>
+    <button id="copyLinkBtn" title="Скопировать ссылку на этот город">🔗</button>
+    <button id="themeBtn" title="Переключить тему">🌙</button>
+    <span class="status" id="status">Готово</span>
+  </div>
+
+  <div class="grid">
+    <section class="card" id="currentCard">
+      <h2>Текущие условия</h2>
+      <div id="currentContent" class="loader">Загрузка…</div>
+    </section>
+
+    <section class="card" id="alertsCard">
+      <h2>Оповещения безопасности</h2>
+      <div id="alertsContent" class="loader">Анализ…</div>
+    </section>
+
+    <section class="card forecast">
+      <h2>Почасовой прогноз (24 часа)</h2>
+      <div id="forecastContent" class="loader">Загрузка…</div>
+
+      <div class="chart-tabs">
+        <button class="chart-tab active" data-metric="temp">Температура</button>
+        <button class="chart-tab" data-metric="wind">Ветер</button>
+        <button class="chart-tab" data-metric="rain">Осадки</button>
+      </div>
+
+      <div class="chart" id="chart"></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <p>Данные: <a href="https://api.met.no/weatherapi/locationforecast/2.0/documentation" target="_blank" rel="noopener">MET Norway Locationforecast 2.0</a>.
+     Лицензия: <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
+  <p>Данные являются модельными и не служат официальным предупреждением о чрезвычайных ситуациях. Для официальных предупреждений обращайтесь в Росгидромет / МЧС.</p>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   УТИЛИТЫ
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+
+function isLightTheme(){
+  return document.documentElement.classList.contains('light');
+}
+const API_BASE = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
+
+const THRESHOLDS = {
+  windWarn: 15, windDanger: 25,
+  rainWarn: 5,  rainDanger: 15,
+  tempColdWarn: -25, tempHeatWarn: 35
+};
+
+/* ============================================================
+   ТОСТ
+   ============================================================ */
+let toastTimer = null;
+function showToast(msg){
+  const el = $('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+/* ============================================================
+   ТЕМА
+   ============================================================ */
+function applyTheme(isLight){
+  document.documentElement.classList.toggle('light', isLight);
+  const btn = $('themeBtn');
+  if (btn){
+    btn.textContent = isLight ? '🌙' : '☀️';
+    btn.title = isLight ? 'Тёмная тема' : 'Светлая тема';
+  }
+  /* Цвет верхней панели браузера/системной плашки */
+  const meta = document.getElementById('metaThemeColor');
+  if (meta) meta.setAttribute('content', isLight ? '#dceafc' : '#0a0e1a');
+  try{ localStorage.setItem('weather-theme', isLight ? 'light' : 'dark'); }catch(e){}
+}
+
+/* ============================================================
+   ДИНАМИЧЕСКИЙ ФОН
+   ============================================================ */
+const PHASES = {
+  night:   { sky:'linear-gradient(180deg,#04060d 0%,#0a0f26 60%,#141a35 100%)',
+             stars:0.9, sun:0,   sunPos:[50,10], label:'🌙 Ночь' },
+  dawn:    { sky:'linear-gradient(180deg,#141530 0%,#5a3663 40%,#d97a4a 75%,#f4b072 100%)',
+             stars:0.25, sun:0.7, sunPos:[15,75], label:'🌅 Рассвет' },
+  morning: { sky:'linear-gradient(180deg,#3a7bc8 0%,#7fb2e0 50%,#c8e0f5 100%)',
+             stars:0,   sun:0.9, sunPos:[25,30], label:'☀️ Утро' },
+  day:     { sky:'linear-gradient(180deg,#1a7ce0 0%,#5aa8e8 50%,#b3d9f5 100%)',
+             stars:0,   sun:1,   sunPos:[50,15], label:'☀️ День' },
+  evening: { sky:'linear-gradient(180deg,#231540 0%,#8a3a5a 40%,#d97a4a 75%,#f4a862 100%)',
+             stars:0.2, sun:0.8, sunPos:[75,65], label:'🌆 Вечер' },
+  dusk:    { sky:'linear-gradient(180deg,#0a0820 0%,#2f1a4a 45%,#6a2f5a 80%,#b04a5a 100%)',
+             stars:0.5, sun:0.3, sunPos:[88,55], label:'🌇 Сумерки' },
+};
+
+/* Светлые палитры фаз — каждая со своим оттенком, но всегда светлая */
+const LIGHT_PHASES = {
+  night:   { sky:'linear-gradient(180deg,#b9c2e6 0%,#cdd6ef 45%,#e0e6f5 100%)',
+             stars:0, sun:0.15, sunPos:[50,10], label:'🌙 Ночь' },
+  dawn:    { sky:'linear-gradient(180deg,#f3d3b8 0%,#f8ddc5 45%,#fbeadc 100%)',
+             stars:0, sun:0.40, sunPos:[15,75], label:'🌅 Рассвет' },
+  morning: { sky:'linear-gradient(180deg,#c7dffb 0%,#dceafc 45%,#eef6ff 100%)',
+             stars:0, sun:0.45, sunPos:[25,30], label:'☀️ Утро' },
+  day:     { sky:'linear-gradient(180deg,#c7dffb 0%,#dceafc 45%,#eef6ff 100%)',
+             stars:0, sun:0.45, sunPos:[50,15], label:'☀️ День' },
+  evening: { sky:'linear-gradient(180deg,#f2d3c6 0%,#f7e0d3 45%,#fceee4 100%)',
+             stars:0, sun:0.35, sunPos:[75,65], label:'🌆 Вечер' },
+  dusk:    { sky:'linear-gradient(180deg,#d8c4e0 0%,#e4d3e9 45%,#f0e3f0 100%)',
+             stars:0, sun:0.20, sunPos:[88,55], label:'🌇 Сумерки' },
+};
+
+const WEATHER_OVERLAYS = {
+  clear:   { color:'rgba(0,0,0,0)',           opacity:0 },
+  partly:  { color:'rgba(180,200,220,0.15)',  opacity:1 },
+  cloudy:  { color:'rgba(90,105,125,0.55)',   opacity:1 },
+  rain:    { color:'rgba(40,55,80,0.72)',     opacity:1 },
+  snow:    { color:'rgba(210,220,235,0.5)',   opacity:1 },
+  thunder: { color:'rgba(20,10,40,0.78)',     opacity:1 },
+  fog:     { color:'rgba(150,160,175,0.6)',   opacity:1 },
+};
+
+function getLocalHour(timezone){
+  try{
+    const parts = new Intl.DateTimeFormat('en-US',{
+      timeZone: timezone, hour:'numeric', hour12:false
+    }).formatToParts(new Date());
+    const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
+    return h % 24;
+  }catch{ return new Date().getHours(); }
+}
+
+function getPhase(hour){
+  if (hour >= 22 || hour < 5)  return 'night';
+  if (hour >= 5  && hour < 7)  return 'dawn';
+  if (hour >= 7  && hour < 11) return 'morning';
+  if (hour >= 11 && hour < 17) return 'day';
+  if (hour >= 17 && hour < 20) return 'evening';
+  return 'dusk';
+}
+
+function getWeatherCategory(symbolCode){
+  const c = (symbolCode || '').toLowerCase();
+  if (c.includes('thunder'))      return 'thunder';
+  if (c.includes('fog'))          return 'fog';
+  if (c.includes('snow') || c.includes('sleet')) return 'snow';
+  if (c.includes('rain') || c.includes('drizzle')) return 'rain';
+  if (c.includes('partlycloudy')) return 'partly';
+  if (c.includes('cloudy'))       return 'cloudy';
+  return 'clear';
+}
+
+function applyBackground(weatherCat, phase){
+  const palette = isLightTheme() ? LIGHT_PHASES : PHASES;
+  const p = palette[phase] || palette.day;
+  const w = WEATHER_OVERLAYS[weatherCat] || WEATHER_OVERLAYS.clear;
+
+  const base  = $('skyBase');
+  const wx    = $('skyWeather');
+  const stars = $('skyStars');
+  const sun   = $('skySun');
+  if (!base || !wx || !stars || !sun) return;
+
+  base.style.background = p.sky;
+
+  if (isLightTheme()){
+    /* В светлой теме погодный оверлей — мягкая цветная примесь */
+    const tint =
+      weatherCat === 'cloudy'  ? 'rgba(200,210,225,0.45)' :
+      weatherCat === 'rain'    ? 'rgba(170,195,220,0.45)' :
+      weatherCat === 'snow'    ? 'rgba(230,235,245,0.55)' :
+      weatherCat === 'thunder' ? 'rgba(150,140,180,0.45)' :
+      weatherCat === 'fog'     ? 'rgba(220,225,230,0.55)' :
+      weatherCat === 'partly'  ? 'rgba(210,220,235,0.25)' :
+                                 'rgba(0,0,0,0)';
+    wx.style.backgroundColor = tint;
+    wx.style.opacity = weatherCat === 'clear' ? 0 : 1;
+  } else {
+    wx.style.backgroundColor = w.color;
+    wx.style.opacity = w.opacity;
+  }
+
+  stars.style.opacity = p.stars;
+  sun.style.opacity   = p.sun;
+  sun.style.setProperty('--sun-x', p.sunPos[0] + '%');
+  sun.style.setProperty('--sun-y', p.sunPos[1] + '%');
+  sun.style.filter = (!isLightTheme() && phase === 'night')
+    ? 'hue-rotate(180deg) brightness(0.85)' : 'none';
+
+  /* Обновляем бейдж фазы, если он уже отрисован */
+  const badge = document.querySelector('.info-item[data-phase]');
+  if (badge) badge.textContent = p.label;
+}
+
+let currentWeatherCat = null;
+let currentTz = 'Europe/Moscow';
+
+/* ============================================================
+   ВОСХОД / ЗАКАТ
+   ============================================================ */
+const RAD = Math.PI / 180;
+const DAY_MS = 86400000;
+const J1970 = 2440588;
+const J2000 = 2451545;
+const ECL = RAD * 23.4397;
+
+const toJulian     = d => d.valueOf() / DAY_MS - 0.5 + J1970;
+const fromJulian   = j => new Date((j + 0.5 - J1970) * DAY_MS);
+const toDays       = d => toJulian(d) - J2000;
+const solarMeanAn  = d => RAD * (357.5291 + 0.98560028 * d);
+
+function eclipticLon(M){
+  const C = RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2*M) + 0.0003 * Math.sin(3*M));
+  const P = RAD * 102.9372;
+  return M + C + P + Math.PI;
+}
+const declination = (l,b=0) =>
+  Math.asin(Math.sin(b)*Math.cos(ECL) + Math.cos(b)*Math.sin(ECL)*Math.sin(l));
+const julianCycle    = (d, lw) => Math.round(d - 0.0009 - lw / (2*Math.PI));
+const approxTransit  = (Ht, lw, n) => 0.0009 + (Ht + lw) / (2*Math.PI) + n;
+const solarTransitJ  = (ds, M, L) => J2000 + ds + 0.0053*Math.sin(M) - 0.0069*Math.sin(2*L);
+
+function getSunTimes(lat, lng, date = new Date()){
+  const lw  = RAD * -lng;
+  const phi = RAD *  lat;
+  const d   = toDays(date);
+
+  const n  = julianCycle(d, lw);
+  const ds = approxTransit(0, lw, n);
+  const M  = solarMeanAn(ds);
+  const L  = eclipticLon(M);
+  const dec = declination(L, 0);
+  const Jnoon = solarTransitJ(ds, M, L);
+
+  const h0 = -0.833 * RAD;
+  const cosw = (Math.sin(h0) - Math.sin(phi)*Math.sin(dec))
+             / (Math.cos(phi)*Math.cos(dec));
+
+  if (cosw > 1)  return { polar: 'night' };
+  if (cosw < -1) return { polar: 'day' };
+
+  const w0 = Math.acos(cosw);
+  const a  = approxTransit(w0, lw, n);
+  const Jset = solarTransitJ(a, M, L);
+  const Jrise = Jnoon - (Jset - Jnoon);
+
+  return { sunrise: fromJulian(Jrise), sunset: fromJulian(Jset) };
+}
+
+/* ============================================================
+   АНИМАЦИЯ ОСАДКОВ
+   ============================================================ */
+let fxCanvas, fxCtx, fxParticles = [], fxRAF = null, fxType = null, fxLast = 0;
+
+function initFx(){
+  fxCanvas = $('fxCanvas');
+  if (!fxCanvas) return;
+  fxCtx = fxCanvas.getContext('2d');
+  resizeFx();
+  window.addEventListener('resize', resizeFx);
+}
+function resizeFx(){
+  if (!fxCanvas) return;
+  fxCanvas.width  = window.innerWidth;
+  fxCanvas.height = window.innerHeight;
+}
+
+function makeParticle(type){
+  const w = fxCanvas.width, h = fxCanvas.height;
+  if (type === 'snow'){
+    return {
+      x: Math.random()*w, y: Math.random()*h,
+      r: 1 + Math.random()*2,
+      vy: 20 + Math.random()*40,
+      vx: -10 + Math.random()*20,
+      phase: Math.random()*Math.PI*2
+    };
+  }
+  return {
+    x: Math.random()*w, y: Math.random()*h,
+    len: 8 + Math.random()*14,
+    vy: 500 + Math.random()*400,
+    vx: -50 - Math.random()*50
+  };
+}
+
+function setFx(type){
+  if (fxType === type) return;
+  fxType = type;
+  fxParticles = [];
+
+  if (!fxCanvas) return;
+
+  if (!type){
+    if (fxRAF){ cancelAnimationFrame(fxRAF); fxRAF = null; }
+    fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    fxLast = 0;
+    return;
+  }
+
+  const count = type === 'snow' ? 130 : 200;
+  for (let i = 0; i < count; i++) fxParticles.push(makeParticle(type));
+
+  if (!fxRAF){
+    fxLast = performance.now();
+    fxRAF = requestAnimationFrame(fxLoop);
+  }
+}
+
+function fxLoop(t){
+  let dt = (t - fxLast) / 1000;
+  if (!isFinite(dt) || dt < 0) dt = 0;
+  dt = Math.min(dt, 0.05);
+  fxLast = t;
+
+  const w = fxCanvas.width, h = fxCanvas.height;
+  fxCtx.clearRect(0, 0, w, h);
+
+  if (fxType === 'snow'){
+        fxCtx.fillStyle = isLightTheme()
+      ? 'rgba(120,160,200,0.85)'
+      : 'rgba(255,255,255,0.85)';
+    fxParticles.forEach(p => {
+      p.phase += dt * 2;
+      p.y += p.vy * dt;
+      p.x += (p.vx + Math.sin(p.phase) * 20) * dt;
+      if (p.y > h + 5){ p.y = -5; p.x = Math.random() * w; }
+      if (p.x < -5) p.x = w + 5;
+      if (p.x > w + 5) p.x = -5;
+      fxCtx.beginPath();
+      fxCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      fxCtx.fill();
+    });
+  } else if (fxType === 'rain'){
+        fxCtx.strokeStyle = isLightTheme()
+      ? 'rgba(70,110,150,0.55)'
+      : 'rgba(180,200,230,0.55)';
+    fxCtx.lineWidth = 1;
+    fxCtx.beginPath();
+    fxParticles.forEach(p => {
+      p.y += p.vy * dt;
+      p.x += p.vx * dt;
+      if (p.y > h + 10){ p.y = -10; p.x = Math.random() * w; }
+      if (p.x < -10) p.x = w + 10;
+      fxCtx.moveTo(p.x, p.y);
+      fxCtx.lineTo(p.x + p.vx * 0.03, p.y + p.len);
+    });
+    fxCtx.stroke();
+  }
+
+  fxRAF = requestAnimationFrame(fxLoop);
+}
+
+/* ============================================================
+   МОЛНИИ
+   ============================================================ */
+let lightningTimer = null;
+
+function setLightning(on){
+  if (on && !lightningTimer){
+    const fire = () => {
+      const el = $('lightning');
+      if (!el) return;
+      el.classList.remove('flash');
+      void el.offsetWidth;
+      el.classList.add('flash');
+      lightningTimer = setTimeout(fire, 4000 + Math.random()*8000);
+    };
+    lightningTimer = setTimeout(fire, 2000 + Math.random()*4000);
+  } else if (!on && lightningTimer){
+    clearTimeout(lightningTimer);
+    lightningTimer = null;
+  }
+}
+
+function applyWeatherEffects(cat){
+  if (cat === 'thunder')      { setFx('rain'); setLightning(true);  }
+  else if (cat === 'rain')    { setFx('rain'); setLightning(false); }
+  else if (cat === 'snow')    { setFx('snow'); setLightning(false); }
+  else                        { setFx(null);   setLightning(false); }
+}
+
+/* ============================================================
+   ФОРМАТИРОВАНИЕ
+   ============================================================ */
+function setStatus(text, isError = false){
+  const el = $('status');
+  el.textContent = text;
+  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+}
+
+function symbolToEmoji(code = ''){
+  const c = code.toLowerCase();
+  if (c.includes('thunder'))     return '⛈️';
+  if (c.includes('heavyrain'))   return '🌧️';
+  if (c.includes('rain'))        return '🌦️';
+  if (c.includes('sleet'))       return '🌨️';
+  if (c.includes('heavysnow'))   return '❄️';
+  if (c.includes('snow'))        return '🌨️';
+  if (c.includes('fog'))         return '🌫️';
+  if (c.includes('cloudy'))      return '☁️';
+  if (c.includes('partlycloudy'))return '⛅';
+  if (c.includes('fair'))        return '🌤️';
+  if (c.includes('clearsky'))    return '☀️';
+  return '🌡️';
+}
+
+function symbolToText(code = ''){
+  const c = code.toLowerCase();
+  if (c.includes('thunder'))     return 'Гроза';
+  if (c.includes('heavyrain'))   return 'Сильный дождь';
+  if (c.includes('rain'))        return 'Дождь';
+  if (c.includes('sleet'))       return 'Мокрый снег';
+  if (c.includes('heavysnow'))   return 'Сильный снег';
+  if (c.includes('snow'))        return 'Снег';
+  if (c.includes('fog'))         return 'Туман';
+  if (c.includes('partlycloudy'))return 'Переменная облачность';
+  if (c.includes('cloudy'))      return 'Облачно';
+  if (c.includes('fair'))        return 'Малооблачно';
+  if (c.includes('clearsky'))    return 'Ясно';
+  return '—';
+}
+
+function fmtTime(iso){
+  return new Date(iso).toLocaleTimeString('ru-RU', {
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function formatCoord(lat, lon){
+  const latStr = Math.abs(lat).toFixed(4) + '° ' + (lat >= 0 ? 'N' : 'S');
+  const lonStr = Math.abs(lon).toFixed(4) + '° ' + (lon >= 0 ? 'E' : 'W');
+  return { latStr, lonStr };
+}
+
+/* ============================================================
+   АНАЛИЗ БЕЗОПАСНОСТИ
+   ============================================================ */
+function analyzeSafety(timeseries){
+  const alerts = [];
+  const next24 = timeseries.slice(0, 24);
+  let maxWind = 0, maxRain = 0, minTemp = Infinity, maxTemp = -Infinity;
+  let hasThunder = false;
+
+  next24.forEach(item => {
+    const d   = item.data.instant.details;
+    const n1  = item.data.next_1_hours?.details;
+    const sym = item.data.next_1_hours?.summary?.symbol_code || '';
+
+    if (d.wind_speed > maxWind) maxWind = d.wind_speed;
+    if (d.air_temperature < minTemp) minTemp = d.air_temperature;
+    if (d.air_temperature > maxTemp) maxTemp = d.air_temperature;
+    if (n1?.precipitation_amount > maxRain) maxRain = n1.precipitation_amount;
+    if (sym.includes('thunder')) hasThunder = true;
+  });
+
+  if (maxWind >= THRESHOLDS.windDanger){
+    alerts.push({level:'danger', icon:'💨', title:'Опасный ветер',
+      text:`Порывы до ${maxWind.toFixed(1)} м/с. Возможны повреждения конструкций.`});
+  } else if (maxWind >= THRESHOLDS.windWarn){
+    alerts.push({level:'warn', icon:'💨', title:'Сильный ветер',
+      text:`Порывы до ${maxWind.toFixed(1)} м/с. Будьте осторожны.`});
+  }
+  if (maxRain >= THRESHOLDS.rainDanger){
+    alerts.push({level:'danger', icon:'🌧️', title:'Опасные ливни',
+      text:`До ${maxRain.toFixed(1)} мм/ч. Возможны подтопления.`});
+  } else if (maxRain >= THRESHOLDS.rainWarn){
+    alerts.push({level:'warn', icon:'🌧️', title:'Сильные осадки',
+      text:`До ${maxRain.toFixed(1)} мм/ч.`});
+  }
+  if (hasThunder){
+    alerts.push({level:'warn', icon:'⛈️', title:'Гроза',
+      text:'В прогнозе есть грозовые явления.'});
+  }
+  if (minTemp <= THRESHOLDS.tempColdWarn){
+    alerts.push({level:'danger', icon:'🥶', title:'Экстремальный холод',
+      text:`Минимум ${minTemp.toFixed(1)} °C. Риск обморожения.`});
+  }
+  if (maxTemp >= THRESHOLDS.tempHeatWarn){
+    alerts.push({level:'warn', icon:'🥵', title:'Экстремальная жара',
+      text:`Максимум ${maxTemp.toFixed(1)} °C. Риск теплового удара.`});
+  }
+  if (alerts.length === 0){
+    alerts.push({level:'ok', icon:'✅', title:'Опасных условий не выявлено',
+      text:'В ближайшие 24 часа погодные параметры в пределах нормы.'});
+  }
+  return alerts;
+}
+/* ============================================================
+   СОВЕТЫ ПО ТЕКУЩЕЙ ПОГОДЕ
+   ============================================================ */
+function analyzeTips(timeseries){
+  const tips = [];
+  if (!timeseries || !timeseries.length) return tips;
+
+  const now = timeseries[0].data.instant.details;
+  const n1  = timeseries[0].data.next_1_hours?.details;
+  const sym = timeseries[0].data.next_1_hours?.summary?.symbol_code
+           || timeseries[0].data.next_6_hours?.summary?.symbol_code || '';
+
+  const temp = now.air_temperature;
+  const wind = now.wind_speed;
+  const rain = n1?.precipitation_amount ?? 0;
+  const cat  = getWeatherCategory(sym);
+
+  /* Осадки */
+  if (cat === 'rain' || cat === 'thunder'){
+    tips.push({ icon:'☔', text:'Не забудьте взять зонтик' });
+  }
+  if (cat === 'snow'){
+    tips.push({ icon:'❄️', text:'Осторожно, скользко — надевайте нескользящую обувь' });
+  }
+  if (rain >= 5){
+    tips.push({ icon:'☂️', text:'Сильные осадки — лучше остаться дома или взять дождевик' });
+  }
+
+  /* Температура */
+  if (temp <= 0){
+    tips.push({ icon:'🧥', text:'Оденьтесь потеплее — на улице мороз' });
+  } else if (temp <= 5){
+    tips.push({ icon:'🧣', text:'Прохладно — не забудьте тёплую куртку и шарф' });
+  }
+  if (temp > 25){
+    tips.push({ icon:'💧', text:'Пейте больше воды — на улице жарко' });
+  }
+  if (temp > 30){
+    tips.push({ icon:'🧴', text:'Используйте солнцезащитный крем и головной убор' });
+  }
+
+  /* Ветер */
+  if (wind >= 10){
+    tips.push({ icon:'🌬️', text:'Порывистый ветер — держитесь подальше от деревьев и рекламных щитов' });
+  }
+
+  /* Особые явления */
+  if (cat === 'fog'){
+    tips.push({ icon:'🚗', text:'Туман — снизьте скорость за рулём и включите противотуманные фары' });
+  }
+  if (cat === 'thunder'){
+    tips.push({ icon:'⚡', text:'Гроза — не стойте под высокими деревьями и линиями электропередач' });
+  }
+
+  return tips;
+}
+/* ============================================================
+   РЕНДЕРИНГ
+   ============================================================ */
+function renderCurrent(ts, lat, lon, tz){
+  const now = ts[0];
+  const d   = now.data.instant.details;
+  const n1  = now.data.next_1_hours?.details;
+  const sym = now.data.next_1_hours?.summary?.symbol_code
+           || now.data.next_6_hours?.summary?.symbol_code || '';
+
+  const { latStr, lonStr } = formatCoord(lat, lon);
+
+  const sun = getSunTimes(lat, lon);
+  let sunInfo;
+  if (sun.polar === 'night'){
+    sunInfo = '<span class="info-item">🌑 Полярная ночь</span>';
+  } else if (sun.polar === 'day'){
+    sunInfo = '<span class="info-item">☀️ Полярный день</span>';
+  } else {
+    const tzOpts = { hour:'2-digit', minute:'2-digit', timeZone: tz };
+    const sr = sun.sunrise.toLocaleTimeString('ru-RU', tzOpts);
+    const ss = sun.sunset .toLocaleTimeString('ru-RU', tzOpts);
+    sunInfo = `<span class="info-item">🌅 Восход ${sr}</span>
+               <span class="info-item">🌇 Закат ${ss}</span>`;
+  }
+
+  $('currentContent').innerHTML = `
+    <div class="current-symbol">${symbolToEmoji(sym)}</div>
+    <div class="current-temp">${d.air_temperature.toFixed(1)}°C</div>
+    <div class="current-desc">${symbolToText(sym)} · обновлено ${fmtTime(now.time)}</div>
+
+        <div class="info-row">
+      <span class="info-item">📍 ${latStr}, ${lonStr}</span>
+      <span class="info-item" data-phase>${(isLightTheme() ? LIGHT_PHASES : PHASES)[getPhase(getLocalHour(tz))].label}</span>
+      ${sunInfo}
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Ветер</div>
+        <div class="metric-value">${d.wind_speed.toFixed(1)} м/с</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Осадки (1 ч)</div>
+        <div class="metric-value">${(n1?.precipitation_amount ?? 0).toFixed(1)} мм</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Влажность</div>
+        <div class="metric-value">${d.relative_humidity.toFixed(0)} %</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAlerts(alerts, tips){
+  const alertsHtml = alerts.map(a => `
+    <div class="alert ${a.level}">
+      <div class="alert-icon">${a.icon}</div>
+      <div>
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-text">${a.text}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const tipsHtml = (tips && tips.length)
+    ? `<div class="tips-list">
+         ${tips.map(t => `
+           <div class="tip">
+             <span class="tip-icon">${t.icon}</span>
+             <span class="tip-text">${t.text}</span>
+           </div>
+         `).join('')}
+       </div>`
+    : '';
+
+  $('alertsContent').innerHTML = alertsHtml + tipsHtml;
+}
+
+let lastTimeseries = null;
+let chartMetric = 'temp';
+
+function renderForecast(ts){
+  lastTimeseries = ts;
+  renderForecastList(ts);
+  renderChart();
+}
+
+function renderForecastList(ts){
+  const next24 = ts.slice(0, 24);
+
+  const items = next24.map(item => {
+    const d   = item.data.instant.details;
+    const n1  = item.data.next_1_hours?.details;
+    const sym = item.data.next_1_hours?.summary?.symbol_code || '';
+    const wind = d.wind_speed;
+    const rain = n1?.precipitation_amount ?? 0;
+
+    let cls = '';
+    if (wind >= THRESHOLDS.windDanger || rain >= THRESHOLDS.rainDanger) cls = 'danger';
+    else if (wind >= THRESHOLDS.windWarn || rain >= THRESHOLDS.rainWarn) cls = 'warn';
+
+    return `
+      <div class="forecast-item ${cls}">
+        <div class="forecast-time">${fmtTime(item.time)}</div>
+        <div class="forecast-icon">${symbolToEmoji(sym)}</div>
+        <div class="forecast-temp">${d.air_temperature.toFixed(0)}°</div>
+        <div class="forecast-precip">${rain > 0 ? rain.toFixed(1) + ' мм' : ''}</div>
+      </div>
+    `;
+  }).join('');
+
+  $('forecastContent').innerHTML = `<div class="forecast-list">${items}</div>`;
+}
+
+function renderChart(){
+  if (!lastTimeseries) return;
+  const next24 = lastTimeseries.slice(0, 24);
+
+  let values, unit, colorFn;
+
+  if (chartMetric === 'temp'){
+    values = next24.map(i => i.data.instant.details.air_temperature);
+    unit   = '°C';
+    colorFn = v => {
+      if (v <= -20) return '#3b82f6';
+      if (v <= 0)   return '#60a5fa';
+      if (v <= 15)  return '#38bdf8';
+      if (v <= 25)  return '#facc15';
+      if (v <= 32)  return '#f97316';
+      return '#ef4444';
+    };
+  } else if (chartMetric === 'wind'){
+    values = next24.map(i => i.data.instant.details.wind_speed);
+    unit   = 'м/с';
+    colorFn = v => {
+      if (v >= THRESHOLDS.windDanger) return '#ef4444';
+      if (v >= THRESHOLDS.windWarn)   return '#f59e0b';
+      if (v >= 8)                     return '#38bdf8';
+      return '#60a5fa';
+    };
+  } else {
+    values = next24.map(i => i.data.next_1_hours?.details?.precipitation_amount ?? 0);
+    unit   = 'мм';
+    colorFn = v => {
+      if (v >= THRESHOLDS.rainDanger) return '#ef4444';
+      if (v >= THRESHOLDS.rainWarn)   return '#f59e0b';
+      if (v > 0.1)                    return '#38bdf8';
+      return getComputedStyle(document.documentElement).getPropertyValue('--chart-empty').trim() || '#334155';
+    };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 0.1);
+
+  $('chart').innerHTML = values.map((v, i) => {
+    const h = ((v - min) / range) * 100;
+    const time = fmtTime(next24[i].time);
+    return `<div class="bar"
+                 style="height:${Math.max(h, 4)}%;background:${colorFn(v)}"
+                 data-tip="${time} · ${v.toFixed(1)} ${unit}"></div>`;
+  }).join('');
+}
+
+/* ============================================================
+   СОХРАНЕНИЕ ГОРОДА / URL-HASH
+   ============================================================ */
+const CITY_STORAGE_KEY = 'weather-city';
+
+function findOptionBySlug(slug){
+  if (!slug) return null;
+  return Array.from($('citySelect').options).find(o => o.dataset.slug === slug);
+}
+function findOptionByValue(value){
+  if (!value) return null;
+  return Array.from($('citySelect').options).find(o => o.value === value);
+}
+function getInitialCity(){
+  const slug = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+  const bySlug = findOptionBySlug(slug);
+  if (bySlug) return bySlug;
+
+  let saved = null;
+  try{ saved = localStorage.getItem(CITY_STORAGE_KEY); }catch(e){}
+  const byValue = findOptionByValue(saved);
+  if (byValue) return byValue;
+
+  return $('citySelect').options[0];
+}
+function saveCity(opt){
+  try{ localStorage.setItem(CITY_STORAGE_KEY, opt.value); }catch(e){}
+}
+function updateHash(opt){
+  const slug = opt?.dataset.slug;
+  if (!slug) return;
+  const target = '#' + slug;
+  if (location.hash !== target){
+    history.replaceState(null, '', target);
+  }
+}
+
+/* ============================================================
+   ЗАГРУЗКА ДАННЫХ
+   ============================================================ */
+async function loadWeather(){
+  const opt = $('citySelect').selectedOptions[0];
+  const [latStr, lonStr] = $('citySelect').value.split(',');
+  const lat = parseFloat(latStr);
+  const lon = parseFloat(lonStr);
+  const tz  = opt?.dataset.tz || 'Europe/Moscow';
+
+  const url = `${API_BASE}?lat=${lat}&lon=${lon}`;
+
+  $('refreshBtn').disabled = true;
+  setStatus('Загрузка…');
+  $('currentContent').innerHTML  = '<div class="loader">Загрузка…</div>';
+  $('alertsContent').innerHTML   = '<div class="loader">Анализ…</div>';
+  $('forecastContent').innerHTML = '<div class="loader">Загрузка…</div>';
+  $('chart').innerHTML = '';
+
+  try {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+    const data = await res.json();
+    const ts = data.properties.timeseries;
+    if (!ts || !ts.length) throw new Error('Пустой ответ от API');
+
+    currentTz = tz;
+    const localHour = getLocalHour(currentTz);
+    const phase     = getPhase(localHour);
+    const symbolCode = ts[0].data.next_1_hours?.summary?.symbol_code
+                    || ts[0].data.next_6_hours?.summary?.symbol_code || '';
+    currentWeatherCat = getWeatherCategory(symbolCode);
+
+    applyBackground(currentWeatherCat, phase);
+    applyWeatherEffects(currentWeatherCat);
+
+    renderCurrent(ts, lat, lon, tz);
+        renderAlerts(analyzeSafety(ts), analyzeTips(ts));
+    renderForecast(ts);
+
+      setStatus('Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
+
+    /* На узких экранах статус скрыт — показываем тост */
+    if (window.matchMedia('(max-width: 640px)').matches){
+      showToast('Обновлено: ' + new Date().toLocaleTimeString('ru-RU', {
+        hour:'2-digit', minute:'2-digit'
+      }));
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus('Ошибка загрузки', true);
+    const msg = `
+      <div class="error">
+        <strong>Не удалось получить данные.</strong><br>
+        ${err.message}<br><br>
+        Возможные причины:<br>
+        • Нет доступа к api.met.no из вашей сети;<br>
+        • Сервер вернул 403 (требуется корректный User-Agent — браузер его подставляет автоматически);<br>
+        • Проблемы с CORS или сетью.
+      </div>`;
+    $('currentContent').innerHTML  = msg;
+    $('alertsContent').innerHTML   = '';
+    $('forecastContent').innerHTML = '';
+  } finally {
+    $('refreshBtn').disabled = false;
+  }
+}
+
+/* ============================================================
+   ИНИЦИАЛИЗАЦИЯ
+   ============================================================ */
+
+/* Тема */
+$('themeBtn').addEventListener('click', () => {
+  const isLight = !document.documentElement.classList.contains('light');
+  applyTheme(isLight);
+  /* Пересчитываем фон и бейдж под новую палитру */
+  if (currentWeatherCat){
+    const phase = getPhase(getLocalHour(currentTz));
+    applyBackground(currentWeatherCat, phase);
+  }
+});
+applyTheme(document.documentElement.classList.contains('light'));
+
+/* Кнопка "Обновить" */
+$('refreshBtn').addEventListener('click', loadWeather);
+
+/* Смена города */
+$('citySelect').addEventListener('change', () => {
+  const opt = $('citySelect').selectedOptions[0];
+  saveCity(opt);
+  updateHash(opt);
+  loadWeather();
+});
+
+/* Изменение хеша вручную */
+window.addEventListener('hashchange', () => {
+  const slug = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+  const opt = findOptionBySlug(slug);
+  if (opt && opt.value !== $('citySelect').value){
+    $('citySelect').value = opt.value;
+    saveCity(opt);
+    loadWeather();
+  }
+});
+
+/* Копировать ссылку */
+$('copyLinkBtn').addEventListener('click', async () => {
+  const url = location.href;
+  try {
+    if (navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(url);
+      showToast('Ссылка скопирована');
+    } else {
+      // fallback для http
+      window.prompt('Скопируйте ссылку:', url);
+    }
+  } catch (e){
+    window.prompt('Скопируйте ссылку:', url);
+  }
+});
+
+/* Табы графиков */
+document.querySelectorAll('.chart-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    chartMetric = btn.dataset.metric;
+    renderChart();
+  });
+});
+
+/* Фаза суток — раз в минуту */
+setInterval(() => {
+  if (currentWeatherCat){
+    const phase = getPhase(getLocalHour(currentTz));
+    applyBackground(currentWeatherCat, phase);
+  }
+}, 60_000);
+
+/* Старт */
+document.addEventListener('DOMContentLoaded', () => {
+  initFx();
+
+  /* Определяем стартовый город по приоритету: hash → localStorage → первый */
+  const initial = getInitialCity();
+  if (initial){
+    $('citySelect').value = initial.value;
+    saveCity(initial);
+    updateHash(initial);
+  }
+
+  loadWeather();
+});
+</script>
+</body>
+</html>
